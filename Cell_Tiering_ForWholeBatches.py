@@ -32,13 +32,15 @@ qs_client = Client()
 # Query data
 conn = qs_client.get_mysql_engine()
 
+batches = "UCD003A[A-E]|UCD004A[F-G]|UCD005A[A-C]|UCD006A[A-B]|UCD006A[D-E]|UCD006A[G-H]|UCD006A[J-N]|UCD008AA|UCD011A[A-E]|UCD005AF|UCD006A[R-S]|UCD013AA" #UCD mastertracker
+batches = "UCD005A[A-C]|UCD005AF|UCD006AB|UCD006AD|UCD006AJ|UCD006AM|UCD011A[D-E]|UCD013AA"
 
-batches = "UCD004AG|UCD005A[A-C]|UCD006AB|UCD006A[D-E]|UCD006AH|UCD006A[J-M]|UCD011AA" #Available UCD batches for MLD
-batches = "UCB002A[U-Y]"
+#batches = "UCD004AG|UCD005A[A-C]|UCD006AB|UCD006A[D-E]|UCD006AH|UCD006A[J-M]|UCD011AA" #Available UCD batches for MLD
+#batches = "UCB002A[U-Z]|UCB003"
 #batches = "UCD005AF|UCD006A[R-S]|UCD011A[B-E]|UCD013AA"
 #batches = "UCD006AN"
 #batches = "UCB002AX"
-batches = "UCD004AF"
+#batches = "APD251EZ"
  
 
 
@@ -762,42 +764,6 @@ def pairing_process(df_pairing):
 df_pairing = YieldedCells
 TieredCells = pairing_process(df_pairing)
 
-# %%
 
-df = TieredCells
 
-# Define Layers
-Layers = 11  # Number of samples in each group
 
-# Group samples by "Pairing Group" and form groups by "Layers"
-grouped_samples = []
-group_id = 1  # To uniquely identify each full group
-
-for pairing_group, group_df in df.groupby('Pairing Group'):
-    # Sort samples by "MedDischargeASR_1C" within each "Pairing Group"
-    sorted_group = group_df.sort_values(by='MedDischargeASR_1C').reset_index(drop=True)
-    
-    # Divide into groups of size "Layers"
-    num_groups = int(np.ceil(len(sorted_group) / Layers))
-    
-    for i in range(num_groups):
-        # Extract the i-th group (slice of the sorted DataFrame)
-        group_chunk = sorted_group.iloc[i * Layers: (i + 1) * Layers].copy()
-        
-        # Check if the chunk has enough samples
-        if len(group_chunk) < Layers:
-            # Assign "Backfill" ID if it's a partial group
-            group_chunk['Group ID'] = f"Tier {pairing_group} Backfill"
-        else:
-            # Assign a unique group identifier for full groups
-            group_chunk['Group ID'] = f"Group_{group_id}"
-            group_id += 1
-        
-        grouped_samples.append(group_chunk)
-
-# Combine all grouped samples into a single DataFrame
-GroupedCells = pd.concat(grouped_samples).reset_index(drop=True)
-GroupedCells.to_clipboard(index=False)
-
-#dslafkj;lksdjf
-# %%
