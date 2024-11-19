@@ -33,14 +33,15 @@ qs_client = Client()
 conn = qs_client.get_mysql_engine()
 
 batches = "UCD003A[A-E]|UCD004A[F-G]|UCD005A[A-C]|UCD006A[A-B]|UCD006A[D-E]|UCD006A[G-H]|UCD006A[J-N]|UCD008AA|UCD011A[A-E]|UCD005AF|UCD006A[R-S]|UCD013AA" #UCD mastertracker
-batches = "UCD005A[A-C]|UCD005AF|UCD006AB|UCD006AD|UCD006AJ|UCD006AM|UCD011A[D-E]|UCD013AA"
+#batches = "UCD005A[A-C]|UCD005AF|UCD006AB|UCD006AD|UCD006AJ|UCD006AM|UCD011A[D-E]|UCD013AA"
 
 #batches = "UCD004AG|UCD005A[A-C]|UCD006AB|UCD006A[D-E]|UCD006AH|UCD006A[J-M]|UCD011AA" #Available UCD batches for MLD
-#batches = "UCB002A[U-Z]|UCB003"
-#batches = "UCD005AF|UCD006A[R-S]|UCD011A[B-E]|UCD013AA"
-#batches = "UCD006AN"
-#batches = "UCB002AX"
-#batches = "APD251EZ"
+#batches = "UCB002A[U-Z]|UCB003A[A-F]"
+#batches = "UCD011AK|UCD006AX"
+#batches = "UCB003A"
+#batches = "UCB003AD"
+##batches = "UCB003AD"
+batches = "UCB003A[F-G]"
  
 
 
@@ -538,7 +539,8 @@ us_to_ps_mapping = dict(zip(gen['2L_cell_id'], gen['6L_cell_id']))
 YieldedCells['Cell Status'] = YieldedCells['Cell ID'].map(us_to_ps_mapping)
 YieldedCells['Cell Status'] = YieldedCells['Cell Status'].fillna('Waiting')
 
-#YieldedCells.to_clipboard(index=False)
+### YieldedCells has a empty table for tiering metrics, stitch new code HERE!!!!!!!!!!!!
+YieldedCells.to_clipboard(index=False)
 
 #%% Query Perfomance Metrics and Tier Cells
 ######## Query Performance Metrics and Tier Cells
@@ -639,21 +641,24 @@ def pairing_process(df_pairing):
     df_us_thickness = unit_cell_metro_metrics_ZI.get_thickness_metrics(
             df_pairing["Cell ID"].str.slice(stop=13).unique(), agent
         )
-    # append "_US" to column names
+    # append "_US" to column names - 
     df_us_thickness.columns = [f"{col}_US" for col in df_us_thickness.columns]
     df_us_thickness = df_us_thickness.rename(columns={"sample_US": "Cell ID"})
-    # select desired columns for analysis
-    selected_columns_df_us_thickness = df_us_thickness[['Cell ID','10mm_eroded_rect_inside_mean_US','0.5mm_eroded_rect_east_mean_US','0.5mm_eroded_rect_west_mean_US','0.5mm_eroded_rect_north_mean_US','0.5mm_eroded_rect_south_mean_US','center_normalized_0.5mm_eroded_rect_outside_mean_US']]
+    # select desired columns for analysis - updated to use median metrics on the 11-08-24 
+    #selected_columns_df_us_thickness = df_us_thickness[['Cell ID','10mm_eroded_rect_inside_mean_US','0.5mm_eroded_rect_east_mean_US','0.5mm_eroded_rect_west_mean_US','0.5mm_eroded_rect_north_mean_US','0.5mm_eroded_rect_south_mean_US','center_normalized_0.5mm_eroded_rect_outside_mean_US']]
+    selected_columns_df_us_thickness = df_us_thickness[['Cell ID','10mm_eroded_rect_inside_median_US','0.5mm_eroded_rect_east_median_US','0.5mm_eroded_rect_west_median_US','0.5mm_eroded_rect_north_median_US','0.5mm_eroded_rect_south_median_US','center_normalized_0.5mm_eroded_rect_outside_median_US']]
     # MERGE US DATA
     df_processing = df_pairing.merge(selected_columns_df_us_thickness, how="left", on="Cell ID")
     # Define the conditions
     conditions = [
-           df_processing['center_normalized_0.5mm_eroded_rect_outside_mean_US'] < 1.1
-        ]
+           df_processing['center_normalized_0.5mm_eroded_rect_outside_median_US'] < 1.1
+            ]
         # Define the corresponding values
     values = [1]
     # Assign values to the 'Thickness' column
-    df_pairing['Thickness'] = np.select(conditions, values, default=3)
+    df_pairing['Thickness'] = np.where(
+        df_processing['center_normalized_0.5mm_eroded_rect_outside_median_US'].notna() & conditions[0], values[0], 3
+        )
 
 
     ## Query Edge Wetting Metrics ##
@@ -667,8 +672,7 @@ def pairing_process(df_pairing):
     print("Aquiring Anode Data")
     df_anode_metrics = unit_cell_metro_metrics_ZI.get_anode_tier_A1(df_pairing['Cell ID'].str.slice(stop=13).unique(), agent)
     df_pairing['Anode'] = df_pairing['Cell ID'].str.slice(start=0, stop=16).map(df_anode_metrics.set_index('sample')['A1_anode_tier'])
-    ## drop this column or else it will be considered in your ranking and script will bug out 
-
+    
 
     ## Query Cathode Misalignment (Alignment) ##
     with ImageClient(host="image-api.qscape.app") as image_client:
@@ -715,8 +719,11 @@ def pairing_process(df_pairing):
     df_pairing['Edge Wetting'] = np.select(conditions, choices)
     df_pairing = df_pairing.drop(columns = ['median_contour_catholyte_pct'])
 
+
     # Remove duplicate rows across all columns
     df_pairing = df_pairing.drop_duplicates()
+
+
     # Select columns that we are considering for tiering
     columns_to_consider = df_pairing.columns.difference(['Cell ID', 'Cell Status', 'Pairing Group', 'Requests', 'Cell Comments'])
     # Calculate the minimum value for each row across the selected columns
@@ -767,3 +774,44 @@ TieredCells = pairing_process(df_pairing)
 
 
 
+
+
+# %% WIP 
+
+df = TieredCells
+
+# Define Layers
+Layers = 11  # Number of samples in each group
+
+# Group samples by "Pairing Group" and form groups by "Layers"
+grouped_samples = []
+group_id = 1  # To uniquely identify each full group
+
+for pairing_group, group_df in df.groupby('Pairing Group'):
+    # Sort samples by "MedDischargeASR_1C" within each "Pairing Group"
+    sorted_group = group_df.sort_values(by='MedDischargeASR_1C').reset_index(drop=True)
+    
+    # Divide into groups of size "Layers"
+    num_groups = int(np.ceil(len(sorted_group) / Layers))
+    
+    for i in range(num_groups):
+        # Extract the i-th group (slice of the sorted DataFrame)
+        group_chunk = sorted_group.iloc[i * Layers: (i + 1) * Layers].copy()
+        
+        # Check if the chunk has enough samples
+        if len(group_chunk) < Layers:
+            # Assign "Backfill" ID if it's a partial group
+            group_chunk['Group ID'] = f"Tier {pairing_group} Backfill"
+        else:
+            # Assign a unique group identifier for full groups
+            group_chunk['Group ID'] = f"Group_{group_id}"
+            group_id += 1
+        
+        grouped_samples.append(group_chunk)
+
+# Combine all grouped samples into a single DataFrame
+GroupedCells = pd.concat(grouped_samples).reset_index(drop=True)
+GroupedCells.to_clipboard(index=False)
+
+#dslafkj;lksdjf
+# %%
