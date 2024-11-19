@@ -81,7 +81,7 @@ def pairing_process(df_pairing):
         final_columns = [
             "Cell ID", "Cell Status", "Pairing Group", 
             "Edge Wetting", "Thickness", "Alignment", 
-            "Anode Tier", "MedDischargeASR_1C", 
+            "Anode", "MedDischargeASR_1C", 
             "DischargeCapacity_Co3", "dVdt_delta_fastcharge", 
             "total_rank_score", "tray_id", "row_index", "col_index"
         ]
@@ -130,32 +130,36 @@ def pairing_process(df_pairing):
     df_us_thickness.columns = [f"{col}_US" for col in df_us_thickness.columns]
     df_us_thickness = df_us_thickness.rename(columns={"sample_US": "Cell ID"})
     # select desired columns for analysis
-    selected_columns_df_us_thickness = df_us_thickness[['Cell ID','10mm_eroded_rect_inside_mean_US','0.5mm_eroded_rect_east_mean_US','0.5mm_eroded_rect_west_mean_US','0.5mm_eroded_rect_north_mean_US','0.5mm_eroded_rect_south_mean_US','center_normalized_0.5mm_eroded_rect_outside_mean_US']]
+    #selected_columns_df_us_thickness = df_us_thickness[['Cell ID','10mm_eroded_rect_inside_mean_US','0.5mm_eroded_rect_east_mean_US','0.5mm_eroded_rect_west_mean_US','0.5mm_eroded_rect_north_mean_US','0.5mm_eroded_rect_south_mean_US','center_normalized_0.5mm_eroded_rect_outside_mean_US']]
+    selected_columns_df_us_thickness = df_us_thickness[['Cell ID','10mm_eroded_rect_inside_median_US','0.5mm_eroded_rect_east_median_US','0.5mm_eroded_rect_west_median_US','0.5mm_eroded_rect_north_median_US','0.5mm_eroded_rect_south_median_US','center_normalized_0.5mm_eroded_rect_outside_median_US']]
+
     # MERGE US DATA
     df_processing = df_pairing.merge(selected_columns_df_us_thickness, how="left", on="Cell ID")
     # Define the conditions
     conditions = [
-           df_processing['center_normalized_0.5mm_eroded_rect_outside_mean_US'] < 1.1
+           df_processing['center_normalized_0.5mm_eroded_rect_outside_median_US'] < 1.1 
         ]
         # Define the corresponding values
     values = [1]
     # Assign values to the 'Thickness' column
-    df_pairing['Thickness'] = np.select(conditions, values, default=3)
+    df_pairing['Thickness'] = np.where(
+        df_processing['center_normalized_0.5mm_eroded_rect_outside_median_US'].notna() & conditions[0], values[0], 3 
+        )
 
 
     ## Query Edge Wetting Metrics ##
     print("Aquiring Edge Wetting Data")
     df_edge_wetting_metrics = unit_cell_metro_metrics_ZI.get_edge_wetting_metrics(df_pairing['Cell ID'].str.slice(stop=13).unique(), agent)
     df_pairing = df_pairing.merge(df_edge_wetting_metrics[['sample','median_contour_catholyte_pct']], how="left", left_on="Cell ID", right_on = 'sample').drop(columns = 'sample')
-    df_pairing['Edge Wetting'] = np.where(df_pairing['median_contour_catholyte_pct'] < 80, 3, 1)
+    #df_pairing['Edge Wetting'] = np.where(df_pairing['median_contour_catholyte_pct'] < 80, 3, 1)
     
     
     ## Query Anode tier for pairing 
     print("Aquiring Anode Data")
     df_anode_metrics = unit_cell_metro_metrics_ZI.get_anode_tier_A1(df_pairing['Cell ID'].str.slice(stop=13).unique(), agent)
-    df_pairing['Anode Tier'] = df_pairing['Cell ID'].str.slice(start=0, stop=16).map(df_anode_metrics.set_index('sample')['A1_anode_tier'])
+    df_pairing['Anode'] = df_pairing['Cell ID'].str.slice(start=0, stop=16).map(df_anode_metrics.set_index('sample')['A1_anode_tier'])
     ## drop this column or else it will be considered in your ranking and script will bug out 
-    df_pairing = df_pairing.drop(columns = ['median_contour_catholyte_pct'])
+    #df_pairing = df_pairing.drop(columns = ['median_contour_catholyte_pct'])
 
     ## Query Cathode Misalignment (Alignment) ##
     with ImageClient(host="image-api.qscape.app") as image_client:
@@ -179,7 +183,7 @@ def pairing_process(df_pairing):
                 elif cathodemisalignment.iloc[0] == "no-go":
                     df_pairing.at[index, 'Alignment'] = 3
                     print(f"{sample_name} is a 3 based on CV model")
-            #Continue with manual review
+            #Continue with manual review of cathode misalignment and edge wetting
             manual_reviews = image_client.get_manual_reviews(samples=[sample_name], include_history=True)
             manualreviewCM = convert_manual_reviews_to_dataframe(manual_reviews, include_modified_date=True)
             if not manualreviewCM.empty and manualreviewCM['cathode_alignment'].notnull().any():
