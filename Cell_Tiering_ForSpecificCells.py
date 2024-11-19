@@ -186,9 +186,25 @@ def pairing_process(df_pairing):
             #Continue with manual review of cathode misalignment and edge wetting
             manual_reviews = image_client.get_manual_reviews(samples=[sample_name], include_history=True)
             manualreviewCM = convert_manual_reviews_to_dataframe(manual_reviews, include_modified_date=True)
-            if not manualreviewCM.empty and manualreviewCM['cathode_alignment'].notnull().any():
-                df_pairing.at[index, 'Alignment'] = manualreviewCM['cathode_alignment'].iloc[0]
-                print(f"Manual Review corrected {sample_name} to {manualreviewCM['cathode_alignment'].iloc[0]}")
+            if 'cathode_alignment' in manualreviewCM:
+                if not manualreviewCM.empty and manualreviewCM['cathode_alignment'].notnull().any():
+                    df_pairing.at[index, 'Alignment'] = manualreviewCM['cathode_alignment'].iloc[0]
+                    #print(f"Manual Review corrected {sample_name} cathode misalignment to {manualreviewCM['cathode_alignment'].iloc[0]}")
+
+            if 'edge_wetting' in manualreviewCM:
+                if not manualreviewCM.empty and manualreviewCM['edge_wetting'].notnull().any():
+                    df_pairing.at[index, 'median_contour_catholyte_pct'] = manualreviewCM['edge_wetting'].iloc[0]
+                    #print(f"Manual Review corrected {sample_name} edge wetting to {manualreviewCM['edge_wetting'].iloc[0]}")
+
+
+    conditions = [
+        df_pairing['median_contour_catholyte_pct'] < 80,
+        (df_pairing['median_contour_catholyte_pct'] >= 80) & (df_pairing['median_contour_catholyte_pct'] <= 98),
+        df_pairing['median_contour_catholyte_pct'] > 98
+    ]
+    choices = [3, 2, 1]
+    df_pairing['Edge Wetting'] = np.select(conditions, choices)
+    df_pairing = df_pairing.drop(columns = ['median_contour_catholyte_pct'])
 
     # Remove duplicate rows across all columns
     df_pairing = df_pairing.drop_duplicates()
