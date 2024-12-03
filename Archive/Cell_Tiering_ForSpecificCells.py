@@ -254,7 +254,7 @@ def pairing_process(df_pairing):
 
 #%% Run code on spreadsheet
 # Load your input spreadsheet into the dataframe
-df_pairing = pd.read_excel('UnitCellTiering/Input Template.xlsx')
+df_pairing = pd.read_excel('UnitCellTiering_Git\Archive\Input Template.xlsx')
 # Call the pairing process
 pairing_process(df_pairing)
 #%%
