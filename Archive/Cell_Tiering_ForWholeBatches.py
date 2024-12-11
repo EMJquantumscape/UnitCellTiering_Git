@@ -42,7 +42,7 @@ batches = "UCD003A[A-E]|UCD004A[F-G]|UCD005A[A-C]|UCD006A[A-B]|UCD006A[D-E]|UCD0
 #batches = "UCB003AD"
 ##batches = "UCB003AD"
 batches = "UCB003A[F-G]"
-batches = "UCB003AK"#|UCB003AE-US00-24|UCB003AF-US00-24|UCB003AF-US00-26|UCB003AG-US00-02|UCB003AG-US00-15|UCB003AG-US00-34|UCB003AG-US00-35|"
+batches = "UCB004AB"#|UCB003AE-US00-24|UCB003AF-US00-24|UCB003AF-US00-26|UCB003AG-US00-02|UCB003AG-US00-15|UCB003AG-US00-34|UCB003AG-US00-35|"
 
 
 
@@ -540,7 +540,7 @@ us_to_ps_mapping = dict(zip(gen['2L_cell_id'], gen['6L_cell_id']))
 YieldedCells['Cell Status'] = YieldedCells['Cell ID'].map(us_to_ps_mapping)
 YieldedCells['Cell Status'] = YieldedCells['Cell Status'].fillna('Waiting')
 
-### YieldedCells has a empty table for tiering metrics, stitch new code HERE!!!!!!!!!!!!
+### YieldedCells has a empty table for tiering metric
 YieldedCells.to_clipboard(index=False)
 
 #%% Query Perfomance Metrics and Tier Cells
